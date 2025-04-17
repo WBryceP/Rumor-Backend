@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    ports: ["5432:5432"]
+    env_file: .env
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ./infra/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+volumes:
+  dbdata:
