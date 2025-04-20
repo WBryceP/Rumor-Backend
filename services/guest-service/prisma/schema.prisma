@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_logs {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  entity_type String
+  entity_id   String   @db.Uuid
+  changed_by  String   @db.Uuid
+  changed_at  DateTime @default(now()) @db.Timestamp(6)
+  old_val     Json?
+  new_val     Json?
+  users       users    @relation(fields: [changed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model events {
+  id                              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title                           String    @db.VarChar(255)
+  description                     String?
+  event_date                      DateTime  @db.Timestamp(6)
+  created_by                      String    @db.Uuid
+  created_at                      DateTime  @default(now()) @db.Timestamp(6)
+  modified_at                     DateTime  @default(now()) @db.Timestamp(6)
+  modified_by                     String?   @db.Uuid
+  deleted_at                      DateTime? @db.Timestamp(6)
+  users_events_created_byTousers  users     @relation("events_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_events_modified_byTousers users?    @relation("events_modified_byTousers", fields: [modified_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rsvps                           rsvps[]
+}
+
+model guest_tags {
+  id       String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  guest_id String @db.Uuid
+  tag_id   String @db.Uuid
+  guests   guests @relation(fields: [guest_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tags     tags   @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([guest_id, tag_id])
+}
+
+model guests {
+  id                              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  full_name                       String       @db.VarChar(255)
+  email                           String       @unique @db.VarChar(255)
+  phone_number                    String?      @db.VarChar(50)
+  instagram_handle                String?      @db.VarChar(100)
+  social_follower_count           Int?
+  engagement_score                Float?       @db.Real
+  created_by                      String       @db.Uuid
+  created_at                      DateTime     @default(now()) @db.Timestamp(6)
+  modified_at                     DateTime     @default(now()) @db.Timestamp(6)
+  modified_by                     String?      @db.Uuid
+  deleted_at                      DateTime?    @db.Timestamp(6)
+  guest_tags                      guest_tags[]
+  users_guests_created_byTousers  users        @relation("guests_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_guests_modified_byTousers users?       @relation("guests_modified_byTousers", fields: [modified_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rsvps                           rsvps[]
+
+  @@index([engagement_score, social_follower_count], map: "idx_guests_status_follower")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model rsvps {
+  id                             String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  guest_id                       String      @db.Uuid
+  host_id                        String      @db.Uuid
+  event_id                       String      @db.Uuid
+  status                         rsvp_status @default(pending)
+  additional_guests              Int         @default(0)
+  source                         String?     @db.VarChar(100)
+  notes                          String?
+  modified_at                    DateTime    @default(now()) @db.Timestamp(6)
+  modified_by                    String?     @db.Uuid
+  events                         events      @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  guests                         guests      @relation(fields: [guest_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_rsvps_host_idTousers     users       @relation("rsvps_host_idTousers", fields: [host_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_rsvps_modified_byTousers users?      @relation("rsvps_modified_byTousers", fields: [modified_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([guest_id, event_id])
+}
+
+model tags {
+  id         String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name       String       @unique @db.VarChar(100)
+  guest_tags guest_tags[]
+}
+
+model users {
+  id                               String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                            String       @unique @db.VarChar(255)
+  password                         Bytes
+  role                             user_role
+  status                           user_status  @default(active)
+  created_at                       DateTime     @default(now()) @db.Timestamp(6)
+  modified_at                      DateTime     @default(now()) @db.Timestamp(6)
+  modified_by                      String?      @db.Uuid
+  audit_logs                       audit_logs[]
+  events_events_created_byTousers  events[]     @relation("events_created_byTousers")
+  events_events_modified_byTousers events[]     @relation("events_modified_byTousers")
+  guests_guests_created_byTousers  guests[]     @relation("guests_created_byTousers")
+  guests_guests_modified_byTousers guests[]     @relation("guests_modified_byTousers")
+  rsvps_rsvps_host_idTousers       rsvps[]      @relation("rsvps_host_idTousers")
+  rsvps_rsvps_modified_byTousers   rsvps[]      @relation("rsvps_modified_byTousers")
+  users                            users?       @relation("usersTousers", fields: [modified_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_modified_by")
+  other_users                      users[]      @relation("usersTousers")
+}
+
+enum rsvp_status {
+  pending
+  approved
+  rejected
+}
+
+enum user_role {
+  admin
+  host
+  guest_list_contributor
+}
+
+enum user_status {
+  active
+  inactive
+  suspended
+}
